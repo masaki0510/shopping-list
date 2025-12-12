@@ -12,3 +12,12 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model Item{
+  id Int @id @default(autoincrement())
+  name String
+  quantity Int?
+  memo String?
+  deon Boolean @default(false)
+  createdAt DateTime @default(now())
+}
