@@ -20,11 +20,11 @@ import {
   Chip,
 } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import { raw } from "@prisma/client/runtime/client";
 
 type Item = {
   id: number;
   name: string;
-  count: number;
   done: boolean;
   createdAt: string;
 };
@@ -34,8 +34,8 @@ export default function Home() {
   const [filter, setFilter] = useState<"all" | "todo" | "done">("all");
 
   const [items, setItems] = useState<Item[]>([
-    { id: 1, name: "牛乳", count: 3, done: false, createdAt: new Date().toISOString() },
-    { id: 2, name: "卵", count: 1, done: true, createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
+    { id: 1, name: "牛乳", done: false, createdAt: new Date().toISOString() },
+    { id: 2, name: "卵",  done: true, createdAt: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
   ]);
 
   const filtered = useMemo(() => {
@@ -45,63 +45,47 @@ export default function Home() {
   }, [items, filter]);
 
   const stats = useMemo(() => {
-    const total = items.reduce((sum, i) => sum + i.count, 0);
-    const done = items.filter((i) => i.done).reduce((sum, i) => sum + i.count, 0);
+    const total = items.length;
+    const done = items.filter((i) => i.done).length;
     return { total, done, todo: total - done };
   }, [items]);
 
   const addItem = () => {
-    if (!name.trim()) return;
+    const raw = name;
+    if (!raw.trim()) return;
 
-    const names = name
-      .split(/[、,]/)
-      .map((s) => s.trim())
+    const names = raw
+      .split(/[、,]/)        // 全角・半角カンマ対応
+      .map(s => s.trim())
       .filter(Boolean);
 
     if (names.length === 0) return;
 
-    const now = new Date().toISOString();
+    const nextItems = names.map((n) => ({
+      id: Date.now() + Math.random(),
+      name: n,
+      quantity: null,
+      memo: null,
+      done: false,
+      createdAt: new Date().toISOString(),
+    }));
 
-    setItems((prev) => {
-      const map = new Map<string, Item>();
-      for (const item of prev) map.set(item.name, item);
-
-      for (const n of names) {
-        const existing = map.get(n);
-        if (existing) {
-          map.set(n, {
-            ...existing,
-            count: existing.count + 1,
-            done: false,
-            createdAt: now,
-          });
-        } else {
-          map.set(n, {
-            id: Date.now() + Math.floor(Math.random() * 1000000),
-            name: n,
-            count: 1,
-            done: false,
-            createdAt: now,
-          });
-        }
-      }
-
-      return Array.from(map.values()).sort((a, b) => {
-        if (a.done !== b.done) return a.done ? 1 : -1;
-        return b.createdAt.localeCompare(a.createdAt);
-      });
-    });
-
+    setItems((prev) => [...nextItems, ...prev]);
     setName("");
   };
 
   const toggleDone = (id: number) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, done: !item.done } : item)));
-  };
+  setItems((prev) =>
+    prev.map((item) =>
+      item.id === id ? { ...item, done: !item.done } : item
+    )
+  );
+};
 
   const removeItem = (id: number) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
+
 
   return (
     <Container maxWidth="sm" sx={{ py: 4 }}>
@@ -121,12 +105,13 @@ export default function Home() {
         <Paper variant="outlined" sx={{ p: 2 }}>
           <Stack spacing={1.5}>
             <TextField
-              label="買い物メモ（、区切りで複数入力）"
-              placeholder="例：牛乳、卵、トイレットペーパー"
+              label="商品名"
+              placeholder="例：牛乳"
               value={name}
               onChange={(e) => setName(e.target.value)}
               fullWidth
             />
+
 
             <Stack direction="row" spacing={1} alignItems="center">
               <Button onClick={addItem}>追加</Button>
@@ -178,14 +163,14 @@ export default function Home() {
                         >
                           {item.name}
                         </Typography>
-
-                        {item.count > 1 && <Typography sx={{ opacity: 0.7 }}>× {item.count}</Typography>}
                       </Stack>
                     }
                     secondary={
-                      <Typography variant="caption" sx={{ opacity: 0.6 }}>
-                        {new Date(item.createdAt).toLocaleString("ja-JP")}
-                      </Typography>
+                      <Stack spacing={0.5}>
+                        <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                          {new Date(item.createdAt).toLocaleString("ja-JP")}
+                        </Typography>
+                      </Stack>
                     }
                   />
                 </ListItem>
