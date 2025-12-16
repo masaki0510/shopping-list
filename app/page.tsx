@@ -46,6 +46,7 @@ export default function Home() {
   const [mealInput, setMealInput] = useState("");
   const [selectedMeals, setSelectedMeals] = useState<Record<string, number>>({});
   const [unknownMeals, setUnknownMeals] = useState<string[]>([]);
+  const [doneMap, setDoneMap] = useState<Record<string, boolean>>({});
 
   const [filter, setFilter] = useState<"all" | "todo" | "done">("all");
 
@@ -88,19 +89,26 @@ export default function Home() {
       map.set(x.name, {
         ...existing,
         count: existing.count + x.count,
-        // done は “どっちか未完了なら未完了”にするのが無難（気になるなら後で調整）
-        done: existing.done && x.done,
+        // doneはここでは決めない（最後に doneMap で上書きする）
+        done: false,
       });
     };
 
     for (const x of mealItems) put(x);
     for (const x of manualItems) put(x);
 
-    return Array.from(map.values()).sort((a, b) => {
+    // doneMap を反映
+    const merged = Array.from(map.values()).map((x) => ({
+      ...x,
+      done: doneMap[x.name] ?? false,
+    }));
+
+    return merged.sort((a, b) => {
       if (a.done !== b.done) return a.done ? 1 : -1;
       return b.createdAt.localeCompare(a.createdAt);
     });
-  }, [mealItems, manualItems]);
+  }, [mealItems, manualItems, doneMap]);
+
 
   const filtered = useMemo(() => {
     if (filter === "todo") return items.filter((i) => !i.done);
@@ -196,13 +204,20 @@ export default function Home() {
 
   // チェック/削除：まずは manualItems だけを対象にする（meal由来は “料理側” で消す思想）
   const toggleDone = (nameKey: string) => {
-    setManualItems((prev) =>
-      prev.map((x) => (x.name === nameKey ? { ...x, done: !x.done } : x))
-    );
+    setDoneMap((prev) => ({
+      ...prev,
+      [nameKey]: !(prev[nameKey] ?? false),
+    }));
   };
+
 
   const removeItem = (nameKey: string) => {
     setManualItems((prev) => prev.filter((x) => x.name !== nameKey));
+    setDoneMap((prev) => {
+      const next = { ...prev };
+      delete next[nameKey];
+      return next;
+    });
   };
 
   return (
